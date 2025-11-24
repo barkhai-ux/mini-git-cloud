@@ -741,7 +741,7 @@ def login_page():
     """Render login/registration page."""
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.markdown("## ☁️ MiniHub Cloud")
+        st.markdown("##  MiniHub Cloud")
         st.caption("Git-powered cloud repository manager")
         
         tab1, tab2 = st.tabs(["Login", "Sign Up"])
@@ -765,9 +765,9 @@ def login_page():
                         
                         st.rerun()
                     else:
-                        st.error("❌ Invalid credentials")
+                        st.error(" Invalid credentials")
                 else:
-                    st.error("❌ Please enter username and password")
+                    st.error(" Please enter username and password")
         
         with tab2:
             u2 = st.text_input("Username", key="register_user")
@@ -775,9 +775,9 @@ def login_page():
             if st.button("Register", use_container_width=True):
                 success, message = register_user(u2, p2)
                 if success:
-                    st.success(f"✅ {message} Please login.")
+                    st.success(f" {message} Please login.")
                 else:
-                    st.error(f"❌ {message}")
+                    st.error(f" {message}")
 
 def dashboard_page():
     """Render user dashboard."""
@@ -807,26 +807,26 @@ def dashboard_page():
             if name:
                 success, message = init_repo(st.session_state.user, name, desc)
                 if success:
-                    st.success(f"✅ {message}")
+                    st.success(f" {message}")
                     st.rerun()
                 else:
-                    st.error(f"❌ {message}")
+                    st.error(f" {message}")
             else:
-                st.error("❌ Repository name is required")
+                st.error(" Repository name is required")
     
     st.markdown("---")
-    st.markdown("### 📦 Your Repositories")
+    st.markdown("###  Your Repositories")
     
     repos = list_repos(st.session_state.user)
     
     if not repos:
-        st.info("No repositories yet. Create your first one above! 🚀")
+        st.info("No repositories yet. Create your first one above!")
     else:
         cols = st.columns(3)
         for i, repo in enumerate(repos):
             with cols[i % 3]:
                 with st.container(border=True):
-                    st.markdown(f"**📦 {repo['name']}**")
+                    st.markdown(f"** {repo['name']}**")
                     if repo.get('description'):
                         st.caption(repo['description'])
                     st.caption(f"Created: {repo['created_at'][:10]}")
@@ -851,7 +851,7 @@ def render_editor_tab(repo_id: str, branch: str, f_name: str):
     }
     lang = lang_map.get(ext, "text")
 
-    st.caption(f"📝 Editing: **{f_name}**")
+    st.caption(f" Editing: **{f_name}**")
     
     editor_response = code_editor(
         content, lang=lang, height="500px", theme="contrast",
@@ -867,8 +867,7 @@ def render_editor_tab(repo_id: str, branch: str, f_name: str):
 
     if editor_response['type'] == "submit" and len(editor_response['text']) > 0:
         if write_file(repo_id, branch, f_name, editor_response['text']):
-            st.toast(f"💾 Saved {f_name}!")
-            # Clear zip cache
+            st.toast(f" Saved {f_name}!")
             zip_key = f"zip_{repo_id}_{branch}"
             if zip_key in st.session_state:
                 del st.session_state[zip_key]
@@ -881,23 +880,23 @@ def render_editor_tab(repo_id: str, branch: str, f_name: str):
         if st.button("➕ Stage File", use_container_width=True):
             result = stage_file(repo_id, branch, f_name, editor_response.get('text', content))
             if result:
-                st.success(f"✅ Staged {f_name}")
+                st.success(f" Staged {f_name}")
                 st.rerun()
     
     with col2:
-        with st.popover("💾 Commit", use_container_width=True):
+        with st.popover(" Commit", use_container_width=True):
             msg = st.text_input("Commit Message")
             author = st.text_input("Author", value=f"{st.session_state.user} <{st.session_state.user}@minihub.cloud>")
             if st.button("Create Commit", use_container_width=True):
                 if not msg:
-                    st.error("❌ Message required!")
+                    st.error(" Message required!")
                 else:
                     commit_id = create_commit(repo_id, branch, msg, author)
                     if commit_id:
-                        st.success(f"✅ Commit created: {commit_id[:8]}")
+                        st.success(f" Commit created: {commit_id[:8]}")
                         st.rerun()
                     else:
-                        st.error("❌ Nothing staged or commit failed!")
+                        st.error(" Nothing staged or commit failed!")
 
 def render_history_tab(repo_id: str, branch: str):
     """Render the history tab content."""
@@ -909,7 +908,7 @@ def render_history_tab(repo_id: str, branch: str):
     log = get_commit_log(repo_id, branch)
     
     if not log:
-        st.info("No commits yet. Make your first commit! 🚀")
+        st.info("No commits yet. Make your first commit! ")
     else:
         for commit in log:
             # Handle both 'timestamp' and 'commit_timestamp' keys
@@ -918,7 +917,7 @@ def render_history_tab(repo_id: str, branch: str):
             
             # Check if this is the current HEAD
             is_head = (commit['commit_id'] == current_head)
-            head_indicator = " 👉 **HEAD**" if is_head else ""
+            head_indicator = "  **HEAD**" if is_head else ""
             
             with st.expander(
                 f"**{commit.get('message', 'No message')}** · {commit['commit_id'][:8]} · {timestamp_short}{head_indicator}",
@@ -932,21 +931,21 @@ def render_history_tab(repo_id: str, branch: str):
                     st.markdown(f"**Parent:** `{parent}`")
                     st.markdown(f"**Timestamp:** {timestamp}")
                     if is_head:
-                        st.success("✅ Currently checked out")
+                        st.success(" Currently checked out")
                 
                 with col2:
                     if not is_head:
-                        if st.button("🔄 Checkout", key=f"checkout_{commit['commit_id']}", use_container_width=True):
+                        if st.button(" Checkout", key=f"checkout_{commit['commit_id']}", use_container_width=True):
                             with st.spinner("Checking out commit..."):
                                 if checkout_commit(repo_id, branch, commit['commit_id']):
-                                    st.success("✅ Checked out successfully")
+                                    st.success(" Checked out successfully")
                                     st.rerun()
                                 else:
-                                    st.error("❌ Checkout failed")
+                                    st.error(" Checkout failed")
                     else:
                         st.info("Current")
                     
-                    if st.button("📊 View Details", key=f"details_{commit['commit_id']}", use_container_width=True):
+                    if st.button(" View Details", key=f"details_{commit['commit_id']}", use_container_width=True):
                         st.session_state.viewing_commit = commit['commit_id']
                         st.rerun()
                 
@@ -955,7 +954,7 @@ def render_history_tab(repo_id: str, branch: str):
                 files = commit.get('files', {})
                 if files:
                     for filename, hash_str in files.items():
-                        st.code(f"📄 {filename} ({hash_str[:8]})", language="")
+                        st.code(f" {filename} ({hash_str[:8]})", language="")
                 else:
                     st.info("No files")
 
@@ -982,7 +981,7 @@ def render_commit_details_modal():
     # Header
     col1, col2 = st.columns([5, 1])
     with col1:
-        st.title(f"📋 Commit Details")
+        st.title(f" Commit Details")
         st.caption(f"Commit {commit['commit_id'][:12]}")
     with col2:
         if st.button("← Back", use_container_width=True):
@@ -1006,20 +1005,20 @@ def render_commit_details_modal():
         parent = commit.get('parent_commit_id')
         st.metric("Parent", parent[:8] if parent else "None")
     
-    st.markdown(f"### 💬 Message")
+    st.markdown(f"### Message")
     st.info(commit.get('message', 'No message'))
     
     st.divider()
     
     # File changes summary
-    st.markdown("### 📊 Changes Summary")
+    st.markdown("### Changes Summary")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("✅ Added", len(details['files_added']))
+        st.metric(" Added", len(details['files_added']))
     with col2:
-        st.metric("📝 Modified", len(details['files_modified']))
+        st.metric(" Modified", len(details['files_modified']))
     with col3:
-        st.metric("🗑️ Deleted", len(details['files_deleted']))
+        st.metric(" Deleted", len(details['files_deleted']))
     
     st.divider()
     
@@ -1028,9 +1027,9 @@ def render_commit_details_modal():
     
     # Added files
     if details['files_added']:
-        st.markdown("#### ✅ Added Files")
+        st.markdown("#### Added Files")
         for filename in details['files_added']:
-            with st.expander(f"➕ {filename}", expanded=False):
+            with st.expander(f" {filename}", expanded=False):
                 new_content = get_file_from_commit(repo_id, branch, commit_id, filename)
                 if new_content:
                     diff = generate_diff("", new_content, filename)
@@ -1043,9 +1042,9 @@ def render_commit_details_modal():
     
     # Modified files
     if details['files_modified']:
-        st.markdown("#### 📝 Modified Files")
+        st.markdown("#### Modified Files")
         for filename in details['files_modified']:
-            with st.expander(f"📝 {filename}", expanded=False):
+            with st.expander(f" {filename}", expanded=False):
                 parent_id = commit.get('parent_commit_id')
                 if parent_id:
                     old_content = get_file_from_commit(repo_id, branch, parent_id, filename)
@@ -1064,9 +1063,9 @@ def render_commit_details_modal():
     
     # Deleted files
     if details['files_deleted']:
-        st.markdown("#### 🗑️ Deleted Files")
+        st.markdown("#### Deleted Files")
         for filename in details['files_deleted']:
-            with st.expander(f"➖ {filename}", expanded=False):
+            with st.expander(f" {filename}", expanded=False):
                 parent_id = commit.get('parent_commit_id')
                 if parent_id:
                     old_content = get_file_from_commit(repo_id, branch, parent_id, filename)
@@ -1081,13 +1080,13 @@ def render_commit_details_modal():
     
     # All files in commit
     st.divider()
-    st.markdown("### 📁 All Files in Commit")
+    st.markdown("### All Files in Commit")
     files = commit.get('files', {})
     if files:
         for filename, hash_str in files.items():
             col1, col2 = st.columns([4, 1])
             with col1:
-                st.text(f"📄 {filename}")
+                st.text(f" {filename}")
             with col2:
                 st.caption(f"{hash_str[:12]}")
     else:
@@ -1108,7 +1107,7 @@ def render_advanced_tab(repo_id: str, branch: str):
                 if search_msg:
                     results = find_commits_by_message(repo_id, search_msg)
                     if results:
-                        st.success(f"✅ Found {len(results)} commit(s):")
+                        st.success(f" Found {len(results)} commit(s):")
                         for r in results:
                             st.code(f"{r['commit_id'][:8]} · {r['branch_name']} · {r['message']}", language="")
                     else:
@@ -1141,7 +1140,7 @@ def repo_page():
     
     # Sidebar
     with st.sidebar:
-        if st.button("⬅️ Dashboard"):
+        if st.button(" Dashboard"):
             st.session_state.view = "dashboard"
             st.rerun()
         
@@ -1150,14 +1149,14 @@ def repo_page():
         
         # Download
         zip_key = f"zip_{repo_id}_{branch}"
-        if st.button("📦 Prepare Download", use_container_width=True):
+        if st.button(" Prepare Download", use_container_width=True):
             with st.spinner("Creating archive..."):
                 zip_buffer = create_repo_zip(repo_id, branch)
                 if zip_buffer:
                     st.session_state[zip_key] = zip_buffer
-                    st.success("✅ Archive ready!")
+                    st.success(" Archive ready!")
                 else:
-                    st.error("❌ Failed to create archive")
+                    st.error(" Failed to create archive")
 
         if zip_key in st.session_state:
             st.download_button(
@@ -1171,7 +1170,7 @@ def repo_page():
         st.divider()
         
         # Upload Files
-        with st.expander("📤 Upload Files", expanded=False):
+        with st.expander(" Upload Files", expanded=False):
             uploaded_files = st.file_uploader(
                 "Drag and drop files here",
                 accept_multiple_files=True,
@@ -1180,7 +1179,7 @@ def repo_page():
             )
             
             if uploaded_files:
-                st.info(f"📁 {len(uploaded_files)} file(s) ready to upload")
+                st.info(f" {len(uploaded_files)} file(s) ready to upload")
                 
                 if st.button("Upload All", use_container_width=True, type="primary"):
                     success_count = 0
@@ -1192,14 +1191,14 @@ def repo_page():
                         # Validate filename
                         valid, error = validate_filename(filename)
                         if not valid:
-                            st.error(f"❌ {filename}: {error}")
+                            st.error(f" {filename}: {error}")
                             failed_files.append(filename)
                             continue
                         
                         # Check file size
                         file_size = uploaded_file.size
                         if file_size > MAX_FILE_SIZE:
-                            st.error(f"❌ {filename}: File too large (max {MAX_FILE_SIZE // 1024 // 1024}MB)")
+                            st.error(f" {filename}: File too large (max {MAX_FILE_SIZE // 1024 // 1024}MB)")
                             failed_files.append(filename)
                             continue
                         
@@ -1210,34 +1209,34 @@ def repo_page():
                             # Upload to working directory
                             if write_file(repo_id, branch, filename, content.decode('utf-8', errors='ignore')):
                                 success_count += 1
-                                st.toast(f"✅ Uploaded {filename}")
+                                st.toast(f" Uploaded {filename}")
                             else:
                                 failed_files.append(filename)
                         except Exception as e:
-                            st.error(f"❌ {filename}: {e}")
+                            st.error(f" {filename}: {e}")
                             failed_files.append(filename)
                     
                     if success_count > 0:
-                        st.success(f"✅ Uploaded {success_count} file(s)")
+                        st.success(f" Uploaded {success_count} file(s)")
                         # Clear zip cache
                         if zip_key in st.session_state:
                             del st.session_state[zip_key]
                         st.rerun()
                     
                     if failed_files:
-                        st.error(f"❌ Failed: {', '.join(failed_files)}")
+                        st.error(f" Failed: {', '.join(failed_files)}")
         
         st.divider()
         
         # Create File
-        with st.expander("➕ New File"):
+        with st.expander(" New File"):
             new_f = st.text_input("Filename")
             if st.button("Create", use_container_width=True):
                 if new_f:
                     valid, error = validate_filename(new_f)
                     if valid:
                         if write_file(repo_id, branch, new_f, "# New File\n"):
-                            st.success(f"✅ Created {new_f}")
+                            st.success(f" Created {new_f}")
                             st.rerun()
                     else:
                         st.error(f"❌ {error}")
@@ -1247,7 +1246,7 @@ def repo_page():
         st.divider()
         
         # File Explorer
-        st.markdown("### 📁 Files")
+        st.markdown("### Files")
         files = list_files(repo_id, branch)
         
         if not files:
@@ -1255,14 +1254,14 @@ def repo_page():
         else:
             for f in files:
                 col1, col2 = st.columns([4, 1])
-                if col1.button(f"📄 {f}", key=f"f_{f}", use_container_width=True):
+                if col1.button(f" {f}", key=f"f_{f}", use_container_width=True):
                     st.session_state.editor_file = f
                     st.rerun()
                 if col2.button("🗑️", key=f"d_{f}"):
                     if delete_file(repo_id, branch, f):
                         if st.session_state.editor_file == f:
                             st.session_state.editor_file = None
-                        st.success(f"✅ Deleted {f}")
+                        st.success(f"Deleted {f}")
                         st.rerun()
         
         st.divider()
@@ -1270,7 +1269,7 @@ def repo_page():
         # Staging Status
         staged = get_staged_files(repo_id, branch)
         if staged:
-            st.markdown("### 📋 Staged")
+            st.markdown("### Staged")
             for filename in staged.keys():
                 st.text(f"✓ {filename}")
 
@@ -1278,7 +1277,7 @@ def repo_page():
     st.title(f"{u} / {repo_name}")
     
     branches = list_branches(repo_id)
-    sel_branch = st.selectbox("🌿 Branch", branches, index=branches.index(branch) if branch in branches else 0)
+    sel_branch = st.selectbox("Branch", branches, index=branches.index(branch) if branch in branches else 0)
     
     if sel_branch != branch:
         st.session_state.current_branch = sel_branch
@@ -1287,13 +1286,13 @@ def repo_page():
             del st.session_state[zip_key]
         st.rerun()
 
-    tab1, tab2, tab3 = st.tabs(["📝 Editor", "📜 History", "🔍 Advanced"])
+    tab1, tab2, tab3 = st.tabs([" Editor", "History", "Advanced"])
     
     with tab1:
         if st.session_state.editor_file:
             render_editor_tab(repo_id, branch, st.session_state.editor_file)
         else:
-            st.info("👈 Select a file from the sidebar to edit")
+            st.info("Select a file from the sidebar to edit")
 
     with tab2:
         render_history_tab(repo_id, branch)
