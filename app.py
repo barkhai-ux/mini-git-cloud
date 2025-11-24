@@ -12,7 +12,6 @@ from code_editor import code_editor
 
 st.set_page_config(page_title="MiniHub Cloud", layout="wide", page_icon="☁️")
 
-# Configuration
 SUPABASE_URL = "https://sqxeokcvxwkwomhokfpk.supabase.co" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxeGVva2N2eHdrd29taG9rZnBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1OTUwNTIsImV4cCI6MjA3OTE3MTA1Mn0.I_TZVz_d3ruo2byvU-IQih6aumLRtdSRbPaCfHo91Qw"
 
@@ -35,7 +34,6 @@ def load_css():
         </style>
     """, unsafe_allow_html=True)
 
-# ============ Validation ============
 
 def validate_filename(filename: str) -> tuple[bool, str]:
     """Validate filename for security."""
@@ -59,7 +57,6 @@ def validate_repo_name(name: str) -> tuple[bool, str]:
         return False, "Repository name too long"
     return True, ""
 
-# ============ Git Algorithm Implementation ============
 
 def sha256_bytes(data: bytes) -> str:
     """Compute SHA256 hash of byte data."""
@@ -91,7 +88,6 @@ def store_object(repo_id: str, branch: str, content: bytes) -> str:
     obj_path = object_path_for_hash(hash_str)
     storage_path = f"{repo_id}/{branch}/objects/{obj_path}"
     
-    # Check if object already exists in DB
     try:
         existing = supabase.table("objects").select("hash").eq("hash", hash_str).eq("repository_id", repo_id).execute()
         if existing.data:
@@ -99,7 +95,6 @@ def store_object(repo_id: str, branch: str, content: bytes) -> str:
     except Exception as e:
         st.warning(f"Error checking object existence: {e}")
     
-    # Compress content
     compressed = io.BytesIO()
     try:
         with zipfile.ZipFile(compressed, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -109,7 +104,6 @@ def store_object(repo_id: str, branch: str, content: bytes) -> str:
     except Exception as e:
         raise Exception(f"Failed to compress content: {e}")
     
-    # Upload to storage
     try:
         supabase.storage.from_(STORAGE_BUCKET).upload(
             storage_path,
@@ -121,7 +115,6 @@ def store_object(repo_id: str, branch: str, content: bytes) -> str:
         if "already exists" not in str(e).lower():
             st.warning(f"Storage upload issue: {e}")
     
-    # Store metadata in objects table
     try:
         supabase.table("objects").insert({
             "hash": hash_str,
@@ -141,7 +134,6 @@ def store_object(repo_id: str, branch: str, content: bytes) -> str:
 def retrieve_object(repo_id: str, branch: str, hash_str: str) -> bytes:
     """Retrieve content from object store by hash."""
     try:
-        # Get storage path from objects table
         result = supabase.table("objects").select("storage_path").eq("hash", hash_str).eq("repository_id", repo_id).execute()
         
         if not result.data:
@@ -207,7 +199,6 @@ def read_head(repo_id: str, branch: str) -> str:
 def stage_file(repo_id: str, branch: str, filename: str, content: str) -> dict:
     """Stage a file for commit."""
     try:
-        # Store in staging area in storage
         stage_path = f"{repo_id}/{branch}/stage/{filename}"
         supabase.storage.from_(STORAGE_BUCKET).upload(
             stage_path,
@@ -215,7 +206,6 @@ def stage_file(repo_id: str, branch: str, filename: str, content: str) -> dict:
             {"upsert": "true"}
         )
         
-        # Update staging index in DB
         save_staging_entry(repo_id, branch, filename, "staged", None)
         
         return {"status": "staged", "added_at": now_utc_iso(), "hash": None}
@@ -238,7 +228,6 @@ def create_commit(repo_id: str, branch: str, message: str, author: str = None) -
     if not staged:
         return None
     
-    # Store all staged files as objects
     files_map = {}
     for filename in staged.keys():
         stage_path = f"{repo_id}/{branch}/stage/{filename}"
@@ -254,10 +243,8 @@ def create_commit(repo_id: str, branch: str, message: str, author: str = None) -
         st.error("No files were successfully stored")
         return None
     
-    # Get parent commit
     parent_commit = read_head(repo_id, branch)
     
-    # Create commit object
     commit_obj = {
         "parent": parent_commit,
         "timestamp": now_utc_iso(),
@@ -266,11 +253,9 @@ def create_commit(repo_id: str, branch: str, message: str, author: str = None) -
         "files": files_map
     }
     
-    # Compute commit ID
     canonical = json.dumps(commit_obj, separators=(',', ':'), sort_keys=True)
     commit_id = sha256_bytes(canonical.encode("utf-8"))
     
-    # Store commit in database
     try:
         supabase.table("commits").insert({
             "commit_id": commit_id,
@@ -286,7 +271,6 @@ def create_commit(repo_id: str, branch: str, message: str, author: str = None) -
         st.error(f"Failed to store commit: {e}")
         return None
     
-    # Clear staging area
     for filename in staged.keys():
         try:
             supabase.storage.from_(STORAGE_BUCKET).remove([f"{repo_id}/{branch}/stage/{filename}"])
@@ -302,7 +286,6 @@ def checkout_commit(repo_id: str, branch: str, commit_id: str) -> bool:
     Similar to: minigit checkout <commit_id>
     """
     try:
-        # Get commit from database
         result = supabase.table("commits").select("*").eq("commit_id", commit_id).eq("repository_id", repo_id).execute()
         
         if not result.data:
@@ -312,7 +295,6 @@ def checkout_commit(repo_id: str, branch: str, commit_id: str) -> bool:
         commit_obj = result.data[0]
         files_map = commit_obj.get("files", {})
         
-        # Step 1: Clear entire working directory (like deleting WORK folder)
         st.info("🗑️ Clearing working directory...")
         try:
             file_list = supabase.storage.from_(STORAGE_BUCKET).list(f"{repo_id}/{branch}/head")
@@ -324,10 +306,8 @@ def checkout_commit(repo_id: str, branch: str, commit_id: str) -> bool:
         except Exception as e:
             st.warning(f"Error clearing directory: {e}")
         
-        # Step 2: Restore all files from commit
         if not files_map:
             st.warning("⚠️ This commit has no files")
-            # Still update HEAD even if no files
             supabase.table("branches").update({
                 "head_commit_id": commit_id
             }).eq("repository_id", repo_id).eq("name", branch).execute()
@@ -339,22 +319,17 @@ def checkout_commit(repo_id: str, branch: str, commit_id: str) -> bool:
         
         for filename, hash_str in files_map.items():
             try:
-                # Get object path
                 obj_path_suffix = object_path_for_hash(hash_str)
                 storage_path = f"{repo_id}/{branch}/objects/{obj_path_suffix}"
                 
-                # Download compressed object
                 compressed_data = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
                 
-                # Decompress content
                 with zipfile.ZipFile(io.BytesIO(compressed_data), 'r') as zf:
-                    # Get the content entry
                     if "content" in zf.namelist():
                         content = zf.read("content")
                     else:
                         content = zf.read(zf.namelist()[0])
                 
-                # Write to working directory
                 supabase.storage.from_(STORAGE_BUCKET).upload(
                     f"{repo_id}/{branch}/head/{filename}",
                     content,
@@ -368,12 +343,10 @@ def checkout_commit(repo_id: str, branch: str, commit_id: str) -> bool:
                 st.error(f"❌ Failed to restore {filename}: {e}")
                 failed_files.append(filename)
         
-        # Check if any files were restored
         if restored_count == 0:
             st.error("❌ Failed to restore any files from commit")
             return False
         
-        # Step 3: Update HEAD pointer
         try:
             supabase.table("branches").update({
                 "head_commit_id": commit_id
