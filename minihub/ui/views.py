@@ -613,7 +613,7 @@ def repo_page():
         render_advanced_tab(repo_id, branch)
 
     with tab4:
-        render_terminal_tab(repo_id, branch, repo_name, u)
+        render_terminal_tab(repo_id, branch, repo_name, username)
 
 
 def render_terminal_tab(repo_id: str, branch: str, repo_name: str, username: str):
