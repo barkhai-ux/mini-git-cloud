@@ -227,6 +227,21 @@ def create_commit(repo_id: str, branch: str, message: str, author: Optional[str]
         return None
 
     parent_commit = read_head(repo_id, branch)
+    # Ensure parent exists to avoid FK violations if HEAD points to a missing commit
+    if parent_commit:
+        try:
+            check = (
+                supabase.table("commits")
+                .select("commit_id")
+                .eq("repository_id", repo_id)
+                .eq("commit_id", parent_commit)
+                .execute()
+            )
+            if not check.data:
+                parent_commit = None
+        except Exception as exc:
+            st.warning(f"Could not verify parent commit, treating as root commit: {exc}")
+            parent_commit = None
     commit_obj = {
         "parent": parent_commit,
         "timestamp": now_utc_iso(),
