@@ -29,41 +29,52 @@ def object_path_for_hash(hash_str: str) -> str:
 def store_object(repo_id: str, branch: str, content: bytes) -> str:
     """
     Store content as a content-addressed object and return the SHA256 hash.
+    Ensures both storage and database entries are created successfully.
     """
     hash_str = sha256_bytes(content)
     obj_path = object_path_for_hash(hash_str)
     storage_path = f"{repo_id}/{branch}/objects/{obj_path}"
 
+    # Check if object already exists
     try:
         existing = (
             supabase.table("objects")
-            .select("hash")
+            .select("hash, storage_path")
             .eq("hash", hash_str)
             .eq("repository_id", repo_id)
             .execute()
         )
         if existing.data:
-            return hash_str
+            # Verify storage file exists
+            try:
+                stored_path = existing.data[0]["storage_path"]
+                supabase.storage.from_(STORAGE_BUCKET).download(stored_path)
+                return hash_str
+            except Exception:
+                # Storage missing but DB entry exists - continue to re-store
+                st.warning(f"Object {hash_str[:8]} found in DB but missing in storage, re-storing...")
     except Exception as exc:
         st.warning(f"Error checking object existence: {exc}")
 
+    # Compress content
     compressed = io.BytesIO()
     try:
         with zipfile.ZipFile(compressed, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("content", content)
         compressed.seek(0)
         compressed_data = compressed.read()
-    except Exception as exc:  # pragma: no cover - fatal path
+    except Exception as exc:
         raise Exception(f"Failed to compress content: {exc}") from exc
 
+    # Upload to storage (must succeed)
     try:
         supabase.storage.from_(STORAGE_BUCKET).upload(
             storage_path, compressed_data, {"upsert": "true", "content-type": "application/zip"}
         )
     except Exception as exc:
-        if "already exists" not in str(exc).lower():
-            st.warning(f"Storage upload issue: {exc}")
+        raise Exception(f"Failed to upload object to storage: {exc}") from exc
 
+    # Store metadata in database (must succeed)
     try:
         supabase.table("objects").insert(
             {
@@ -76,14 +87,23 @@ def store_object(repo_id: str, branch: str, content: bytes) -> str:
             }
         ).execute()
     except Exception as exc:
-        if "duplicate" not in str(exc).lower():
-            st.warning(f"Object metadata insert issue: {exc}")
+        if "duplicate" not in str(exc).lower() and "unique" not in str(exc).lower():
+            # If storage succeeded but DB insert failed, try to clean up
+            try:
+                supabase.storage.from_(STORAGE_BUCKET).remove([storage_path])
+            except Exception:
+                pass
+            raise Exception(f"Failed to store object metadata: {exc}") from exc
 
     return hash_str
 
 
 def retrieve_object(repo_id: str, branch: str, hash_str: str) -> bytes:
-    """Retrieve content from object store by hash."""
+    """
+    Retrieve content from object store by hash.
+    Tries database first, then falls back to trying storage paths directly.
+    """
+    # First, try to get storage path from database
     try:
         result = (
             supabase.table("objects")
@@ -93,15 +113,46 @@ def retrieve_object(repo_id: str, branch: str, hash_str: str) -> bytes:
             .execute()
         )
 
-        if not result.data:
-            raise Exception(f"Object {hash_str} not found in database")
+        if result.data:
+            storage_path = result.data[0]["storage_path"]
+            try:
+                compressed_data = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
+                with zipfile.ZipFile(io.BytesIO(compressed_data), "r") as zf:
+                    return zf.read("content")
+            except Exception as storage_exc:
+                st.warning(f"Failed to download from DB path {storage_path}: {storage_exc}")
+    except Exception as db_exc:
+        st.warning(f"Database lookup failed for object {hash_str[:8]}: {db_exc}")
 
-        storage_path = result.data[0]["storage_path"]
-        compressed_data = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
-        with zipfile.ZipFile(io.BytesIO(compressed_data), "r") as zf:
-            return zf.read("content")
-    except Exception as exc:
-        raise Exception(f"Failed to retrieve object {hash_str}: {exc}") from exc
+    # Fallback: try to find object in storage by trying common branch paths
+    obj_path = object_path_for_hash(hash_str)
+    branches_to_try = [branch, "main", "master"]
+    
+    for try_branch in branches_to_try:
+        fallback_path = f"{repo_id}/{try_branch}/objects/{obj_path}"
+        try:
+            compressed_data = supabase.storage.from_(STORAGE_BUCKET).download(fallback_path)
+            with zipfile.ZipFile(io.BytesIO(compressed_data), "r") as zf:
+                content = zf.read("content")
+                # Verify hash matches
+                if sha256_bytes(content) == hash_str:
+                    # Store metadata in DB for future lookups
+                    try:
+                        supabase.table("objects").insert({
+                            "hash": hash_str,
+                            "repository_id": repo_id,
+                            "branch_name": try_branch,
+                            "object_type": "blob",
+                            "size_bytes": len(content),
+                            "storage_path": fallback_path,
+                        }).execute()
+                    except Exception:
+                        pass  # Ignore duplicate errors
+                    return content
+        except Exception:
+            continue
+    
+    raise Exception(f"Object {hash_str} not found in database or storage")
 
 
 def load_staging_index(repo_id: str, branch: str) -> Dict[str, Dict[str, str]]:
